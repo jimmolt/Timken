@@ -1782,7 +1782,7 @@ function openPanel(timken) {
           ? '<span style="color:#16a34a;font-size:11px;font-weight:600">✓ '+r.qty+' in stock</span>'
           : '<span style="color:#991b1b;font-size:11px">✗ Out of stock</span>')
       : '';
-    const dims = (r.bore != null ? r.bore.toFixed(3)+'"' : '—') + ' bore · ' + (r.od != null ? r.od.toFixed(3)+'"' : '—') + ' OD';
+    const dims = (r.bore != null ? r.bore.toFixed(3)+'"' : '—') + ' bore · ' + (r.od != null ? r.od.toFixed(3)+'"' : '—') + ' length';
     const typeColor = isCup ? 'background:#dcfce7;color:#166534' : 'background:#dbeafe;color:#1e40af';
     const rowBg = isCurrent ? 'background:#fffbeb;border-color:#fbbf24;' : r.qty > 0 ? 'background:#f0fdf4;' : '';
     return `<div class="panel-row" style="${rowBg}" onclick="openPanel('${r.timken}')">
