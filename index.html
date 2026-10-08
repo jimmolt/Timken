@@ -89,6 +89,9 @@
 
   .inv-filter { display:flex; gap:6px; align-items:center; }
   select.inv-filter-sel { min-width:150px; }
+  .tol-wrap { display:inline-flex; align-items:center; gap:4px; font-size:14px; color:#444; white-space:nowrap; }
+  .tol-wrap input { width:64px; padding:8px 6px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+  .set-badge { font-size:10px; background:#7c3aed; color:#fff; padding:1px 6px; border-radius:3px; font-weight:600; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -105,6 +108,9 @@
   <select id="boreInFilter" onchange="render()">
     <option value="">All bore (inches)</option>
   </select>
+  <label class="tol-wrap" title="Also show bearings whose bore is within this % above or below the selected bore">
+    ± <input type="number" id="boreTol" value="0" min="0" max="100" step="0.5" oninput="render()"> % bore
+  </label>
   <div class="inv-filter">
     <select class="inv-filter-sel" id="stockFilter" onchange="render()">
       <option value="">All stock status</option>
@@ -1656,6 +1662,7 @@ function clearAll(){
   document.getElementById('srch').value='';
   document.getElementById('typeFilter').value='';
   document.getElementById('boreInFilter').value='';
+  document.getElementById('boreTol').value='0';
   document.getElementById('stockFilter').value='';
   page=0; render();
 }
@@ -1670,10 +1677,17 @@ function filtered(){
   const t=document.getElementById('typeFilter').value;
   const bi=document.getElementById('boreInFilter').value;
   const sf=document.getElementById('stockFilter').value;
+  const tol=Math.max(0,parseFloat(document.getElementById('boreTol').value)||0);
   return data.filter(d=>{
     if(q && !d.timken.toLowerCase().includes(q) && !d.seq.toLowerCase().includes(q)) return false;
     if(t && d.type!==t) return false;
-    if(bi && String(d.bore)!==bi) return false;
+    if(bi){
+      if(d.bore==null) return false;
+      const b0=parseFloat(bi);
+      if(tol>0){
+        if(d.bore < b0*(1-tol/100)-1e-9 || d.bore > b0*(1+tol/100)+1e-9) return false;
+      } else if(String(d.bore)!==bi) return false;
+    }
     if(sf==='in'      && !(d.qty > 0))       return false;
     if(sf==='out'     && !(d.qty === 0))      return false;
     if(sf==='stocked' && d.qty === undefined) return false;
@@ -1752,6 +1766,18 @@ Object.values(FAMILIES).forEach(members => {
   members.forEach(p => { PART_FAMILY[p.toUpperCase()] = members; });
 });
 
+// ============================================================
+// SETS — each set is a named list of Timken part numbers.
+// A bearing can appear in more than one set.
+// ============================================================
+const SETS = {
+  // "Set 1": ["LM67010","LM67048"],
+};
+const PART_SETS = {};
+Object.entries(SETS).forEach(([name, parts]) => {
+  parts.forEach(p => { (PART_SETS[p.toUpperCase()] = PART_SETS[p.toUpperCase()] || []).push(name); });
+});
+
 // Build data lookup map
 const DATA_MAP = {};
 data.forEach(d => { DATA_MAP[d.timken.toUpperCase()] = d; });
@@ -1792,6 +1818,7 @@ function openPanel(timken) {
           <div class="panel-row-num" style="display:flex;align-items:center;gap:6px;">
             ${r.timken}
             ${isCurrent ? '<span style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:3px;font-weight:600">selected</span>' : ''}
+            ${isCurrent ? (PART_SETS[p.toUpperCase()]||[]).map(n=>'<span class="set-badge">'+n+'</span>').join('') : ''}
             ${r.notes ? '<span style="font-size:10px;color:#92400e;background:#fef3c7;padding:1px 5px;border-radius:3px;font-weight:600">'+r.notes+'</span>' : ''}
           </div>
           <div class="panel-row-info">${dims} &nbsp;${stock}</div>
