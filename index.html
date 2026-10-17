@@ -196,6 +196,7 @@
     <label for="supplierEmail">Supplier email</label>
     <input type="email" id="supplierEmail" placeholder="orders@supplier.com" oninput="saveSupplier()">
     <button class="cart-send" id="cartSend" onclick="sendOrder()">✉️ Email Stock Order in Gmail</button>
+    <textarea id="orderPreview" readonly rows="9" style="display:none;width:100%;margin-top:8px;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;"></textarea>
     <div class="cart-sub">
       <button onclick="copyOrder()" id="cartCopy">Copy order text</button>
       <button onclick="clearCart()">Empty cart</button>
@@ -2016,19 +2017,37 @@ function sendOrder() {
   const to = document.getElementById('supplierEmail').value.trim();
   if (!to) { alert('Enter your supplier\'s email address first.'); document.getElementById('supplierEmail').focus(); return; }
   saveSupplier();
-  const url = 'https://mail.google.com/mail/?view=cm&fs=1' +
-    '&to=' + encodeURIComponent(to) +
-    '&su=' + encodeURIComponent('Stock Order') +
-    '&body=' + encodeURIComponent(orderBody());
-  window.open(url, '_blank');
+  const subj = 'Stock Order', body = orderBody();
+  const q = 'subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/i.test(ua);
+  const mailto = 'mailto:' + to + '?' + q;
+  if (isIOS) {
+    // Opens the Gmail app if installed; falls back to the default Mail app
+    const t = setTimeout(() => { window.location.href = mailto; }, 900);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(t); }, { once: true });
+    window.location.href = 'googlegmail:///co?to=' + encodeURIComponent(to) + '&' + q;
+  } else if (isAndroid) {
+    // Forces the Gmail app; falls back to any mail app via mailto
+    window.location.href = 'intent://' + to + '?' + q + '#Intent;scheme=mailto;package=com.google.android.gm;' +
+      'S.browser_fallback_url=' + encodeURIComponent(mailto) + ';end';
+  } else {
+    window.open('https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(to) + '&' + q, '_blank');
+  }
 }
 
 function copyOrder() {
+  const ta = document.getElementById('orderPreview');
   const txt = 'Subject: Stock Order\n\n' + orderBody();
+  ta.value = txt;
+  ta.style.display = 'block';
+  ta.focus(); ta.select(); ta.setSelectionRange(0, txt.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch(e) {}
   const btn = document.getElementById('cartCopy');
-  const done = () => { btn.textContent = 'Copied ✓'; setTimeout(() => btn.textContent = 'Copy order text', 1500); };
-  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, () => prompt('Copy this:', txt));
-  else prompt('Copy this:', txt);
+  btn.textContent = ok ? 'Copied ✓' : 'Press & hold text to copy';
+  setTimeout(() => btn.textContent = 'Copy order text', 2500);
 }
 
 function openCart() {
