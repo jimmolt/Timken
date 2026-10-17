@@ -92,6 +92,35 @@
   .tol-wrap { display:inline-flex; align-items:center; gap:4px; font-size:14px; color:#444; white-space:nowrap; }
   .tol-wrap input { width:64px; padding:8px 6px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
   .set-badge { font-size:10px; background:#7c3aed; color:#fff; padding:1px 6px; border-radius:3px; font-weight:600; white-space:nowrap; }
+  /* REORDER CART */
+  .cart-chk { width:17px; height:17px; cursor:pointer; accent-color:#f26522; }
+  .cart-fab { position:fixed; left:16px; bottom:16px; z-index:150; background:#f26522; color:#fff; border:none; border-radius:999px; padding:12px 18px; font-size:14px; font-weight:700; box-shadow:0 4px 14px rgba(0,0,0,0.25); cursor:pointer; }
+  .cart-fab:hover { background:#d4541a; }
+  .cart-fab .cnt { background:#fff; color:#f26522; border-radius:999px; padding:1px 8px; margin-left:6px; font-size:13px; }
+  .cart-panel { position:fixed; top:0; left:-440px; width:420px; max-width:94vw; height:100vh; background:#fff; z-index:301; box-shadow:4px 0 24px rgba(0,0,0,0.2); transition:left 0.3s ease; display:flex; flex-direction:column; }
+  .cart-panel.open { left:0; }
+  .cart-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:300; }
+  .cart-backdrop.open { display:block; }
+  .cart-head { background:#f26522; color:#fff; padding:16px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+  .cart-head h2 { font-size:18px; font-weight:800; }
+  .cart-body { flex:1; overflow-y:auto; padding:14px; }
+  .cart-empty { text-align:center; color:#999; padding:2rem 1rem; font-size:14px; }
+  .cart-item { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid #eee; border-radius:7px; margin-bottom:6px; }
+  .cart-item .nm { flex:1; font-weight:700; font-size:15px; color:#1e3a5f; min-width:0; }
+  .cart-item .nm small { display:block; font-weight:400; font-size:11px; color:#888; }
+  .cart-item .qbtn { width:30px; height:30px; padding:0; font-size:16px; font-weight:700; }
+  .cart-item input.qty { width:52px; padding:6px 4px; text-align:center; border:1px solid #ccc; border-radius:6px; font-size:15px; }
+  .cart-item .rm { border:none; background:transparent; color:#b91c1c; font-size:18px; padding:2px 6px; }
+  .cart-foot { border-top:1px solid #ddd; padding:12px 14px; flex-shrink:0; background:#fafafa; }
+  .cart-foot label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#888; display:block; margin-bottom:4px; }
+  .cart-foot input[type=email] { width:100%; padding:8px 10px; border:1px solid #ccc; border-radius:6px; font-size:14px; margin-bottom:10px; }
+  .cart-send { width:100%; padding:12px; background:#1e3a5f; color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:700; cursor:pointer; }
+  .cart-send:hover { background:#16304f; }
+  .cart-send:disabled { background:#aaa; cursor:not-allowed; }
+  .cart-sub { display:flex; gap:8px; margin-top:8px; }
+  .cart-sub button { flex:1; font-size:12px; }
+  .cart-add { border:1px solid #f26522; background:#fff; color:#f26522; font-size:11px; font-weight:700; padding:3px 8px; border-radius:5px; cursor:pointer; white-space:nowrap; }
+  .cart-add.on { background:#f26522; color:#fff; }
 </style>
 </head>
 <body>
@@ -137,6 +166,7 @@
 <table>
 <thead>
 <tr>
+  <th style="cursor:default;width:34px" title="Add to reorder cart">🛒</th>
   <th onclick="sortBy('timken')" id="h-timken">Timken No. <span id="s-timken"></span></th>
   <th onclick="sortBy('type')" id="h-type">Type <span id="s-type"></span></th>
   <th onclick="sortBy('bore')" id="h-bore">Bore (in) <span id="s-bore"></span></th>
@@ -156,6 +186,22 @@
 </div>
 
 
+
+<button class="cart-fab" id="cartFab" onclick="openCart()">🛒 Reorder Cart<span class="cnt" id="cartCnt">0</span></button>
+<div class="cart-backdrop" id="cartBackdrop" onclick="closeCart()"></div>
+<div class="cart-panel" id="cartPanel">
+  <div class="cart-head"><h2>🛒 Reorder Cart</h2><button class="panel-close" onclick="closeCart()">✕</button></div>
+  <div class="cart-body" id="cartBody"></div>
+  <div class="cart-foot">
+    <label for="supplierEmail">Supplier email</label>
+    <input type="email" id="supplierEmail" placeholder="orders@supplier.com" oninput="saveSupplier()">
+    <button class="cart-send" id="cartSend" onclick="sendOrder()">✉️ Email Stock Order in Gmail</button>
+    <div class="cart-sub">
+      <button onclick="copyOrder()" id="cartCopy">Copy order text</button>
+      <button onclick="clearCart()">Empty cart</button>
+    </div>
+  </div>
+</div>
 
 <div class="panel-backdrop" id="panelBackdrop" onclick="closePanel()"></div>
 <div class="side-panel" id="sidePanel">
@@ -1722,7 +1768,7 @@ function render(){
 
   const tbody=document.getElementById('tbody');
   if(!slice.length){
-    tbody.innerHTML='<tr><td colspan="8" class="no-results">No bearings match your filters.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="9" class="no-results">No bearings match your filters.</td></tr>';
   } else {
     tbody.innerHTML=slice.map(d=>{
       let stockCell='<td style="color:#ccc;font-size:12px">—</td>';
@@ -1732,6 +1778,7 @@ function render(){
       }
       return `
       <tr class="${d.qty > 0 ? 'in-stock' : ''}" style="cursor:pointer" onclick="openPanel('${d.timken}')">
+        <td onclick="event.stopPropagation()"><input type="checkbox" class="cart-chk" ${cart[d.timken]?'checked':''} onchange="toggleCart('${d.timken}')"></td>
         <td><strong>${d.timken}</strong></td>
         <td><span class="badge badge-${d.type.toLowerCase()}">${d.type}</span></td>
         <td>${d.bore!=null?d.bore.toFixed(3)+'"':'—'}</td>
@@ -1845,6 +1892,7 @@ function openPanel(timken) {
         </div>
       </div>
       <div class="panel-row-price ${priceClass}">${showPrice ? price : ''}</div>
+      <button class="cart-add ${cart[r.timken]?'on':''}" onclick="event.stopPropagation();toggleCart('${r.timken}')">${cart[r.timken]?'✓ In cart':'+ Cart'}</button>
     </div>`;
   }
 
@@ -1868,7 +1916,11 @@ function openPanel(timken) {
     }
   }
 
-  document.getElementById('panelBody').innerHTML = html;
+  const pb = document.getElementById('panelBody');
+  const keepScroll = (panelPart === timken) ? pb.scrollTop : 0;
+  panelPart = timken;
+  pb.innerHTML = html;
+  pb.scrollTop = keepScroll;
   document.getElementById('panelBackdrop').classList.add('open');
   document.getElementById('sidePanel').classList.add('open');
 }
@@ -1876,8 +1928,120 @@ function openPanel(timken) {
 function closePanel() {
   document.getElementById('panelBackdrop').classList.remove('open');
   document.getElementById('sidePanel').classList.remove('open');
+  panelPart = null;
 }
 
+// ============================================================
+// REORDER CART — select bearings, then email a Stock Order via Gmail
+// ============================================================
+const SUPPLIER_KEY = 'timkenSupplierEmail';
+const CART_KEY = 'timkenReorderCart';
+const SIGN_OFF = 'Jim Molt';
+let panelPart = null;
+let cart = {};   // { 'PARTNO': qty }
+
+try { cart = JSON.parse(localStorage.getItem(CART_KEY) || '{}') || {}; } catch(e) { cart = {}; }
+try { document.getElementById('supplierEmail').value = localStorage.getItem(SUPPLIER_KEY) || ''; } catch(e) {}
+
+function persistCart() { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch(e) {} }
+function saveSupplier() { try { localStorage.setItem(SUPPLIER_KEY, document.getElementById('supplierEmail').value.trim()); } catch(e) {} }
+
+function refreshAfterCartChange() {
+  persistCart();
+  render();
+  renderCart();
+  if (panelPart) openPanel(panelPart);
+}
+
+function toggleCart(part) {
+  if (cart[part]) delete cart[part]; else cart[part] = 1;
+  refreshAfterCartChange();
+}
+
+function setQty(part, q) {
+  q = parseInt(q, 10);
+  if (isNaN(q) || q < 1) q = 1;
+  cart[part] = q;
+  persistCart();
+  renderCart(true);
+}
+
+function bumpQty(part, delta) {
+  setQty(part, (cart[part] || 1) + delta);
+}
+
+function removeFromCart(part) {
+  delete cart[part];
+  refreshAfterCartChange();
+}
+
+function clearCart() {
+  if (!Object.keys(cart).length) return;
+  if (!confirm('Empty the reorder cart?')) return;
+  cart = {};
+  refreshAfterCartChange();
+}
+
+function renderCart(keepFocus) {
+  const parts = Object.keys(cart);
+  document.getElementById('cartCnt').textContent = parts.length;
+  document.getElementById('cartSend').disabled = !parts.length;
+  const body = document.getElementById('cartBody');
+  if (!parts.length) {
+    body.innerHTML = '<div class="cart-empty">Your cart is empty.<br>Tick the 🛒 box next to a bearing to add it.</div>';
+    return;
+  }
+  if (keepFocus && body.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
+  body.innerHTML = parts.map(p => {
+    const d = DATA_MAP[p.toUpperCase()];
+    const sub = d ? d.type + (d.qty !== undefined ? ' · ' + d.qty + ' in stock' : '') : '';
+    return `<div class="cart-item">
+      <div class="nm">${p}<small>${sub}</small></div>
+      <button class="qbtn" onclick="bumpQty('${p}',-1);renderCart()">−</button>
+      <input class="qty" type="number" min="1" value="${cart[p]}" onchange="setQty('${p}',this.value);renderCart()">
+      <button class="qbtn" onclick="bumpQty('${p}',1);renderCart()">+</button>
+      <button class="rm" title="Remove" onclick="removeFromCart('${p}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function orderBody() {
+  const lines = Object.keys(cart).map(p => cart[p] + ' x ' + p);
+  return 'Hello,\n\nPlease add the following to my stock order:\n\n' +
+         lines.join('\n') + '\n\nThanks,\n' + SIGN_OFF;
+}
+
+function sendOrder() {
+  if (!Object.keys(cart).length) return;
+  const to = document.getElementById('supplierEmail').value.trim();
+  if (!to) { alert('Enter your supplier\'s email address first.'); document.getElementById('supplierEmail').focus(); return; }
+  saveSupplier();
+  const url = 'https://mail.google.com/mail/?view=cm&fs=1' +
+    '&to=' + encodeURIComponent(to) +
+    '&su=' + encodeURIComponent('Stock Order') +
+    '&body=' + encodeURIComponent(orderBody());
+  window.open(url, '_blank');
+}
+
+function copyOrder() {
+  const txt = 'Subject: Stock Order\n\n' + orderBody();
+  const btn = document.getElementById('cartCopy');
+  const done = () => { btn.textContent = 'Copied ✓'; setTimeout(() => btn.textContent = 'Copy order text', 1500); };
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, () => prompt('Copy this:', txt));
+  else prompt('Copy this:', txt);
+}
+
+function openCart() {
+  renderCart();
+  document.getElementById('cartBackdrop').classList.add('open');
+  document.getElementById('cartPanel').classList.add('open');
+}
+function closeCart() {
+  document.getElementById('cartBackdrop').classList.remove('open');
+  document.getElementById('cartPanel').classList.remove('open');
+}
+
+renderCart();
 render();
 </script>
 </body>
