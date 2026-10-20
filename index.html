@@ -2027,7 +2027,9 @@ function sendOrder() {
     // Opens the Gmail app if installed; falls back to the default Mail app
     const t = setTimeout(() => { window.location.href = mailto; }, 900);
     document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(t); }, { once: true });
-    window.location.href = 'googlegmail:///co?to=' + encodeURIComponent(to) + '&' + q;
+    // Gmail's iOS URL scheme collapses bare \n into spaces; \r\n (%0D%0A) is preserved
+    const gq = 'subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body.replace(/\n/g, '\r\n'));
+    window.location.href = 'googlegmail:///co?to=' + encodeURIComponent(to) + '&' + gq;
   } else if (isAndroid) {
     // Forces the Gmail app; falls back to any mail app via mailto
     window.location.href = 'intent://' + to + '?' + q + '#Intent;scheme=mailto;package=com.google.android.gm;' +
