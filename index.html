@@ -93,6 +93,16 @@
   select.inv-filter-sel { min-width:150px; }
   .tol-wrap { display:inline-flex; align-items:center; gap:4px; font-size:14px; color:#444; white-space:nowrap; }
   .tol-wrap input { width:64px; padding:8px 6px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+  .choice-back { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:300; display:none; align-items:center; justify-content:center; padding:16px; }
+  .choice-back.open { display:flex; }
+  .choice-box { background:#fff; border-radius:10px; padding:16px; width:100%; max-width:380px; box-shadow:0 10px 30px rgba(0,0,0,.3); }
+  .choice-box h3 { margin:0 0 4px; font-size:16px; }
+  .choice-box p { margin:0 0 12px; font-size:12px; color:#666; }
+  .choice-btn { display:block; width:100%; text-align:left; padding:10px 12px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:8px; background:#fff; font-size:14px; cursor:pointer; }
+  .choice-btn:hover { background:#f3f4f6; }
+  .choice-btn small { display:block; color:#666; font-size:11px; margin-top:2px; }
+  .choice-btn.set { border-color:#7c3aed; }
+  .choice-cancel { background:none; border:none; color:#666; font-size:13px; cursor:pointer; padding:6px 0 0; width:100%; text-align:center; }
   .set-badge { font-size:10px; background:#7c3aed; color:#fff; padding:1px 6px; border-radius:3px; font-weight:600; white-space:nowrap; }
   /* REORDER CART */
   .cart-chk { width:17px; height:17px; cursor:pointer; accent-color:#f26522; }
@@ -1730,7 +1740,7 @@ function filtered(){
   const sf=document.getElementById('stockFilter').value;
   const tol=Math.max(0,parseFloat(document.getElementById('boreTol').value)||0);
   return data.filter(d=>{
-    if(q && !d.timken.toLowerCase().includes(q) && !d.seq.toLowerCase().includes(q)) return false;
+    if(q && !d.timken.toLowerCase().includes(q) && !d.seq.toLowerCase().includes(q) && !(PART_SETS[d.timken.toUpperCase()]||[]).some(n=>n.toLowerCase()===q.trim())) return false;
     if(t && d.type!==t) return false;
     if(bi){
       if(d.bore==null) return false;
@@ -1782,7 +1792,7 @@ function render(){
       return `
       <tr class="${d.qty > 0 ? 'in-stock' : ''}" style="cursor:pointer" onclick="openPanel('${d.timken}')">
         <td onclick="event.stopPropagation()"><input type="checkbox" class="cart-chk" ${cart[d.timken]?'checked':''} onchange="toggleCart('${d.timken}')"></td>
-        <td><strong>${d.timken}</strong></td>
+        <td><strong>${d.timken}</strong>${setBadges(d.timken)}</td>
         <td><span class="badge badge-${d.type.toLowerCase()}">${d.type}</span></td>
         <td>${d.bore!=null?d.bore.toFixed(3)+'"':'—'}</td>
         <td>${d.boreMM!=null?d.boreMM+' mm':'—'}</td>
@@ -1844,6 +1854,9 @@ const SETS = {
   "Set 45": ["LM501310","LM501349"],
 };
 const PART_SETS = {};
+function setBadges(p) {
+  return (PART_SETS[p.toUpperCase()]||[]).map(n=>' <span class="set-badge">'+n+'</span>').join('');
+}
 Object.entries(SETS).forEach(([name, parts]) => {
   parts.forEach(p => { (PART_SETS[p.toUpperCase()] = PART_SETS[p.toUpperCase()] || []).push(name); });
 });
@@ -1888,7 +1901,7 @@ function openPanel(timken) {
           <div class="panel-row-num" style="display:flex;align-items:center;gap:6px;">
             ${r.timken}
             ${isCurrent ? '<span style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:3px;font-weight:600">selected</span>' : ''}
-            ${isCurrent ? (PART_SETS[p.toUpperCase()]||[]).map(n=>'<span class="set-badge">'+n+'</span>').join('') : ''}
+            ${setBadges(p)}
             ${r.notes ? '<span style="font-size:10px;color:#92400e;background:#fef3c7;padding:1px 5px;border-radius:3px;font-weight:600">'+r.notes+'</span>' : ''}
           </div>
           <div class="panel-row-info">${dims} &nbsp;${stock}</div>
@@ -1957,9 +1970,47 @@ function refreshAfterCartChange() {
 }
 
 function toggleCart(part) {
-  if (cart[part]) delete cart[part]; else cart[part] = 1;
+  if (cart[part]) { delete cart[part]; refreshAfterCartChange(); return; }
+  const sets = PART_SETS[part.toUpperCase()] || [];
+  if (!sets.length) { cart[part] = 1; refreshAfterCartChange(); return; }
+  askSetOrSingle(part, sets);
+}
+
+// Bearing belongs to one or more sets: reorder just this bearing, or the whole set
+function askSetOrSingle(part, sets) {
+  let back = document.getElementById('choiceBack');
+  if (!back) {
+    back = document.createElement('div');
+    back.id = 'choiceBack';
+    back.className = 'choice-back';
+    back.onclick = e => { if (e.target === back) cancelChoice(); };
+    document.body.appendChild(back);
+  }
+  const btns = ['<button class="choice-btn" onclick="chooseOrder(\'' + part + '\')">Just this bearing<small>' + part + '</small></button>']
+    .concat(sets.map(n => '<button class="choice-btn set" onclick="chooseOrder(\'' + part + '\',\'' + n + '\')">Whole ' + n +
+      '<small>' + SETS[n].join(' + ') + '</small></button>'));
+  back.innerHTML = '<div class="choice-box"><h3>' + part + ' is part of ' + sets.join(' / ') + '</h3>' +
+    '<p>What do you want to reorder?</p>' + btns.join('') +
+    '<button class="choice-cancel" onclick="cancelChoice()">Cancel</button></div>';
+  back.classList.add('open');
+}
+
+function chooseOrder(part, setName) {
+  const parts = setName ? SETS[setName] : [part];
+  parts.forEach(p => {
+    const d = DATA_MAP[p.toUpperCase()];
+    const key = d ? d.timken : p;
+    if (!cart[key]) cart[key] = 1;
+  });
+  closeChoice();
   refreshAfterCartChange();
 }
+
+function closeChoice() {
+  const b = document.getElementById('choiceBack');
+  if (b) b.classList.remove('open');
+}
+function cancelChoice() { closeChoice(); refreshAfterCartChange(); }
 
 function setQty(part, q) {
   q = parseInt(q, 10);
@@ -1999,7 +2050,7 @@ function renderCart(keepFocus) {
     const d = DATA_MAP[p.toUpperCase()];
     const sub = d ? d.type + (d.qty !== undefined ? ' · ' + d.qty + ' in stock' : '') : '';
     return `<div class="cart-item">
-      <div class="nm">${p}<small>${sub}</small></div>
+      <div class="nm">${p}${setBadges(p)}<small>${sub}</small></div>
       <button class="qbtn" onclick="bumpQty('${p}',-1);renderCart()">−</button>
       <input class="qty" type="number" min="1" value="${cart[p]}" onchange="setQty('${p}',this.value);renderCart()">
       <button class="qbtn" onclick="bumpQty('${p}',1);renderCart()">+</button>
