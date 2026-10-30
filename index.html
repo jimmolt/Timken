@@ -2076,7 +2076,9 @@ function sendOrder() {
   const to = document.getElementById('supplierEmail').value.trim();
   if (!to) { alert('Enter your supplier\'s email address first.'); document.getElementById('supplierEmail').focus(); return; }
   saveSupplier();
-  const subj = 'Stock Order', body = orderBody();
+  const subj = 'Stock Order';
+  // Mail apps (Gmail iOS especially) collapse bare \n into spaces; CRLF (%0D%0A) survives on every path
+  const body = orderBody().replace(/\r?\n/g, '\r\n');
   const q = 'subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
   const ua = navigator.userAgent || '';
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -2085,10 +2087,11 @@ function sendOrder() {
   if (isIOS) {
     // Opens the Gmail app if installed; falls back to the default Mail app
     const t = setTimeout(() => { window.location.href = mailto; }, 900);
-    document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(t); }, { once: true });
-    // Gmail's iOS URL scheme collapses bare \n into spaces; \r\n (%0D%0A) is preserved
-    const gq = 'subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body.replace(/\n/g, '\r\n'));
-    window.location.href = 'googlegmail:///co?to=' + encodeURIComponent(to) + '&' + gq;
+    const cancel = () => clearTimeout(t);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) cancel(); }, { once: true });
+    window.addEventListener('pagehide', cancel, { once: true });
+    window.addEventListener('blur', cancel, { once: true });
+    window.location.href = 'googlegmail:///co?to=' + encodeURIComponent(to) + '&' + q;
   } else if (isAndroid) {
     // Forces the Gmail app; falls back to any mail app via mailto
     window.location.href = 'intent://' + to + '?' + q + '#Intent;scheme=mailto;package=com.google.android.gm;' +
