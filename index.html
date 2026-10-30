@@ -1791,7 +1791,7 @@ function render(){
       }
       return `
       <tr class="${d.qty > 0 ? 'in-stock' : ''}" style="cursor:pointer" onclick="openPanel('${d.timken}')">
-        <td onclick="event.stopPropagation()"><input type="checkbox" class="cart-chk" ${cart[d.timken]?'checked':''} onchange="toggleCart('${d.timken}')"></td>
+        <td onclick="event.stopPropagation()"><input type="checkbox" class="cart-chk" ${inCart(d.timken)?'checked':''} onchange="toggleCart('${d.timken}')"></td>
         <td><strong>${d.timken}</strong>${setBadges(d.timken)}</td>
         <td><span class="badge badge-${d.type.toLowerCase()}">${d.type}</span></td>
         <td>${d.bore!=null?d.bore.toFixed(3)+'"':'—'}</td>
@@ -1908,7 +1908,7 @@ function openPanel(timken) {
         </div>
       </div>
       <div class="panel-row-price ${priceClass}">${showPrice ? price : ''}</div>
-      <button class="cart-add ${cart[r.timken]?'on':''}" onclick="event.stopPropagation();toggleCart('${r.timken}')">${cart[r.timken]?'✓ In cart':'+ Cart'}</button>
+      <button class="cart-add ${inCart(r.timken)?'on':''}" onclick="event.stopPropagation();toggleCart('${r.timken}')">${inCart(r.timken)?'✓ In cart':'+ Cart'}</button>
     </div>`;
   }
 
@@ -1969,8 +1969,16 @@ function refreshAfterCartChange() {
   if (panelPart) openPanel(panelPart);
 }
 
+// Cart keys are either a part number or a set name ("Set 22") when the whole set is ordered
+function cartSetsFor(part) { return (PART_SETS[part.toUpperCase()] || []).filter(n => cart[n]); }
+function inCart(part) { return !!cart[part] || cartSetsFor(part).length > 0; }
+
 function toggleCart(part) {
-  if (cart[part]) { delete cart[part]; refreshAfterCartChange(); return; }
+  if (inCart(part)) {
+    delete cart[part];
+    cartSetsFor(part).forEach(n => delete cart[n]);
+    refreshAfterCartChange(); return;
+  }
   const sets = PART_SETS[part.toUpperCase()] || [];
   if (!sets.length) { cart[part] = 1; refreshAfterCartChange(); return; }
   askSetOrSingle(part, sets);
@@ -1996,12 +2004,8 @@ function askSetOrSingle(part, sets) {
 }
 
 function chooseOrder(part, setName) {
-  const parts = setName ? SETS[setName] : [part];
-  parts.forEach(p => {
-    const d = DATA_MAP[p.toUpperCase()];
-    const key = d ? d.timken : p;
-    if (!cart[key]) cart[key] = 1;
-  });
+  const key = setName || part;
+  if (!cart[key]) cart[key] = 1;
   closeChoice();
   refreshAfterCartChange();
 }
@@ -2047,10 +2051,12 @@ function renderCart(keepFocus) {
   }
   if (keepFocus && body.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
   body.innerHTML = parts.map(p => {
+    const isSet = !!SETS[p];
     const d = DATA_MAP[p.toUpperCase()];
-    const sub = d ? d.type + (d.qty !== undefined ? ' · ' + d.qty + ' in stock' : '') : '';
+    const sub = isSet ? SETS[p].join(' + ')
+      : d ? d.type + (d.qty !== undefined ? ' · ' + d.qty + ' in stock' : '') : '';
     return `<div class="cart-item">
-      <div class="nm">${p}${setBadges(p)}<small>${sub}</small></div>
+      <div class="nm">${p}${isSet ? '' : setBadges(p)}<small>${sub}</small></div>
       <button class="qbtn" onclick="bumpQty('${p}',-1);renderCart()">−</button>
       <input class="qty" type="number" min="1" value="${cart[p]}" onchange="setQty('${p}',this.value);renderCart()">
       <button class="qbtn" onclick="bumpQty('${p}',1);renderCart()">+</button>
@@ -2060,7 +2066,7 @@ function renderCart(keepFocus) {
 }
 
 function orderBody() {
-  const lines = Object.keys(cart).map(p => cart[p] + ' x ' + p);
+  const lines = Object.keys(cart).map(p => cart[p] + ' x ' + p + (SETS[p] ? ' (' + SETS[p].join(' ') + ')' : ''));
   return 'Hello,\n\nPlease add the following to my stock order:\n\n' +
          lines.join('\n') + '\n\nThanks,\n' + SIGN_OFF;
 }
